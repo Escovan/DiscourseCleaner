@@ -42,7 +42,11 @@ begin
     if days_inactive >= PURGE_0_POSTER_DAYS
       puts "[VERWIJDER] 0-poster: #{user.username} (Inactief: #{days_inactive} dagen)"
       unless DRY_RUN
-        UserDestroyer.new(system_user).destroy(user, delete_posts: false, context: 'AVG Purge 6 maanden (0 posts)')
+        begin
+          UserDestroyer.new(system_user).destroy(user, delete_posts: true, context: 'AVG Purge 6 maanden (0 posts)')
+        rescue => e
+          puts "Fout bij verwijderen 0-poster #{user.username}: #{e.message}"
+        end
       end
     elsif days_inactive >= WARN_0_POSTER_DAYS && user.custom_fields['purge_warning_sent'].nil?
       if deactivated_or_suspended?(user)
