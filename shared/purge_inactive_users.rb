@@ -25,6 +25,11 @@ begin
     user.last_seen_at || user.created_at
   end
 
+  # Helper method om te controleren of een account gedeactiveerd of geschorst is
+  def deactivated_or_suspended?(user)
+    !user.active || user.suspended? || user.suspended_at.present? || user.suspended_till.present?
+  end
+
   # --- FASE 1: DE 0-POSTERS (6 MAANDEN) ---
   puts "\n--- Fase 1: Gebruikers met 0 posts ---"
 
@@ -40,12 +45,17 @@ begin
         UserDestroyer.new(system_user).destroy(user, delete_posts: false, context: 'AVG Purge 6 maanden (0 posts)')
       end
     elsif days_inactive >= WARN_0_POSTER_DAYS && user.custom_fields['purge_warning_sent'].nil?
-      puts "[WAARSCHUWING] 0-poster: #{user.username} (Inactief: #{days_inactive} dagen)"
-      unless DRY_RUN
-        title = "Je account wordt binnenkort verwijderd"
-        raw   = "Hallo #{user.username},\n\nJe hebt al ruim 5 maanden niet ingelogd en nog geen berichten geplaatst. Over 2 weken verwijderen we je account conform ons privacybeleid. Log in om dit te voorkomen."
-        PostCreator.create!(system_user, title: title, raw: raw, target_usernames: user.username, archetype: Archetype.private_message)
-        user.upsert_custom_fields(purge_warning_sent: 'true')
+      if deactivated_or_suspended?(user)
+        puts "[OVERSLAAN WAARSCHUWING] 0-poster is gedeactiveerd/geschorst: #{user.username}"
+        user.upsert_custom_fields(purge_warning_sent: 'skipped') unless DRY_RUN
+      else
+        puts "[WAARSCHUWING] 0-poster: #{user.username} (Inactief: #{days_inactive} dagen)"
+        unless DRY_RUN
+          title = "Je account wordt binnenkort verwijderd"
+          raw   = "Hallo #{user.username},\n\nJe hebt al ruim 5 maanden niet ingelogd en nog geen berichten geplaatst. Over 2 weken verwijderen we je account conform ons privacybeleid. Log in om dit te voorkomen."
+          PostCreator.create!(system_user, title: title, raw: raw, target_usernames: user.username, archetype: Archetype.private_message)
+          user.upsert_custom_fields(purge_warning_sent: 'true')
+        end
       end
     end
   end
@@ -68,20 +78,30 @@ begin
         end
       end
     elsif days_inactive >= WARN_CONTRIBUTOR_DAYS && user.custom_fields['anon_warning_sent'].nil?
-      puts "[WAARSCHUWING] Reguliere bijdrager anonimisatie: #{user.username} (Inactief: #{days_inactive} dagen)"
-      unless DRY_RUN
-        title = "Je account wordt binnenkort geanonimiseerd"
-        raw   = "Hallo #{user.username},\n\nJe bent al bijna een jaar niet op het forum geweest. Omdat we de privacy van onze leden, patiënten en hun naasten erg belangrijk vinden, anonimiseren we accounts na 12 maanden inactiviteit. \n\nDit betekent dat je profielnaam verandert, je persoonlijke gegevens worden gewist, maar je eerdere berichten behouden blijven (anoniem). Wil je je account behouden? Log dan binnen 2 weken in."
-        PostCreator.create!(system_user, title: title, raw: raw, target_usernames: user.username, archetype: Archetype.private_message)
-        user.upsert_custom_fields(anon_warning_sent: 'true')
+      if deactivated_or_suspended?(user)
+        puts "[OVERSLAAN WAARSCHUWING] Reguliere bijdrager is gedeactiveerd/geschorst: #{user.username}"
+        user.upsert_custom_fields(anon_warning_sent: 'skipped') unless DRY_RUN
+      else
+        puts "[WAARSCHUWING] Reguliere bijdrager anonimisatie: #{user.username} (Inactief: #{days_inactive} dagen)"
+        unless DRY_RUN
+          title = "Je account wordt binnenkort geanonimiseerd"
+          raw   = "Hallo #{user.username},\n\nJe bent al bijna een jaar niet op het forum geweest. Omdat we de privacy van onze leden, patiënten en hun naasten erg belangrijk vinden, anonimiseren we accounts na 12 maanden inactiviteit. \n\nDit betekent dat je profielnaam verandert, je persoonlijke gegevens worden gewist, maar je eerdere berichten behouden blijven (anoniem). Wil je je account behouden? Log dan binnen 2 weken in."
+          PostCreator.create!(system_user, title: title, raw: raw, target_usernames: user.username, archetype: Archetype.private_message)
+          user.upsert_custom_fields(anon_warning_sent: 'true')
+        end
       end
     elsif days_inactive >= CARE_CONTRIBUTOR_DAYS && user.custom_fields['care_message_sent'].nil?
-      puts "[ZORGBERICHT] Reguliere bijdrager: #{user.username} (Inactief: #{days_inactive} dagen)"
-      unless DRY_RUN
-        title = "We missen je op het forum"
-        raw   = "Hallo #{user.username},\n\nWe zagen dat je al een half jaar niet bent geweest. We hopen dat alles goed met je gaat! Weet dat je altijd welkom bent om weer mee te praten of gewoon mee te lezen."
-        PostCreator.create!(system_user, title: title, raw: raw, target_usernames: user.username, archetype: Archetype.private_message)
-        user.upsert_custom_fields(care_message_sent: 'true')
+      if deactivated_or_suspended?(user)
+        puts "[OVERSLAAN ZORGBERICHT] Reguliere bijdrager is gedeactiveerd/geschorst: #{user.username}"
+        user.upsert_custom_fields(care_message_sent: 'skipped') unless DRY_RUN
+      else
+        puts "[ZORGBERICHT] Reguliere bijdrager: #{user.username} (Inactief: #{days_inactive} dagen)"
+        unless DRY_RUN
+          title = "We missen je op het forum"
+          raw   = "Hallo #{user.username},\n\nWe zagen dat je al een half jaar niet bent geweest. We hopen dat alles goed met je gaat! Weet dat je altijd welkom bent om weer mee te praten of gewoon mee te lezen."
+          PostCreator.create!(system_user, title: title, raw: raw, target_usernames: user.username, archetype: Archetype.private_message)
+          user.upsert_custom_fields(care_message_sent: 'true')
+        end
       end
     end
   end
