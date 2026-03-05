@@ -28,7 +28,7 @@ begin
   # --- FASE 1: DE 0-POSTERS (6 MAANDEN) ---
   puts "\n--- Fase 1: Gebruikers met 0 posts ---"
 
-  zero_posters = target_users.where(post_count: 0)
+  zero_posters = target_users.joins(:user_stat).where(user_stats: { post_count: 0 })
 
   zero_posters.find_each do |user|
     date_to_check = inactivity_date(user)
@@ -53,7 +53,7 @@ begin
   # --- FASE 2: DE BIJDRAGERS - REGULIER (>0 posts, wel ingelogd geweest) ---
   puts "\n--- Fase 2: Reguliere bijdragers (>0 posts) ---"
 
-  regular_contributors = target_users.where('post_count > 0 AND last_seen_at IS NOT NULL')
+  regular_contributors = target_users.joins(:user_stat).where('user_stats.post_count > 0 AND users.last_seen_at IS NOT NULL')
 
   regular_contributors.find_each do |user|
     days_inactive = (now - user.last_seen_at).to_i / 1.day
@@ -90,7 +90,7 @@ begin
   # --- FASE 3: GEÏMPORTEERDE BIJDRAGERS (>0 posts, nooit ingelogd) ---
   puts "\n--- Fase 3: Geïmporteerde bijdragers (Nooit ingelogd) ---"
 
-  imported_contributors = target_users.where('post_count > 0 AND last_seen_at IS NULL')
+  imported_contributors = target_users.joins(:user_stat).where('user_stats.post_count > 0 AND users.last_seen_at IS NULL')
 
   imported_contributors.find_each do |user|
     warning_date_str = user.custom_fields['imported_warning_sent_at']
